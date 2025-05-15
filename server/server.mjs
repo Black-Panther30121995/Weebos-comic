@@ -13,7 +13,10 @@ const app = express();
 const upload = multer({ dest: 'uploads/' });
 
 app.use(cors({
-  origin: [process.env.VITE_FRONTEND_URL || 'http://localhost:3000'],
+  origin: ['http://localhost:5173', 'https://weebos-31f97.web.app'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 
@@ -95,6 +98,12 @@ app.delete('/delete-chapter', async (req, res) => {
 
 // Comic routes
 app.use('/api/comics', comicRoutes);
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: 'Internal Server Error' });
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
