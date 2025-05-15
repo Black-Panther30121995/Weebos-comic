@@ -14,7 +14,7 @@ const upload = multer({ dest: 'uploads/' });
 
 app.use(cors({
   origin: ['http://localhost:5173', 'https://weebos-31f97.web.app'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE','PATCH'],
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
