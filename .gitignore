@@ -1,3 +1,17 @@
+# Node modules
 node_modules/
-build/
+client/node_modules/
+server/node_modules/
+
+# Environment variables
 .env
+client/.env
+server/.env
+client/.env.production
+
+# Firebase Admin SDK
+server/weebos-31f97-firebase-adminsdk-fbsvc-9204f3528e.json
+server/*.json
+
+# Build output
+client/dist/
