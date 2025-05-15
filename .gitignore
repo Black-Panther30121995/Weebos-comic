@@ -1,11 +1,13 @@
 # Node modules
-node_modules/
 client/node_modules/
 server/node_modules/
 
 # Environment variables
 .env
 client/.env
+client/src/pages/.env
+client/src/.env
+server/scripts/.env
 server/.env
 client/.env.production
 
