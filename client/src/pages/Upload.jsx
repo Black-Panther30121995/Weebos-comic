@@ -141,8 +141,8 @@ export default function Upload() {
       });
 
       const totalImages = sortedImageFiles.length;
-      const progressPerImage = 80 / totalImages;
-      let currentProgress = comicExists ? 0 : 10;
+      const progressPerImage = 85 / totalImages; // 85% for uploads, 10% for comic creation, 5% for final patch
+      let uploadedImages = 0;
 
       const imageUrls = await Promise.all(
         sortedImageFiles.map(async (file, index) => {
@@ -151,7 +151,6 @@ export default function Upload() {
             formData.append("file", file);
             formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
             formData.append("folder", `comics/${selectedComic}/${chapterKey}`);
-            // Remove extension from file.name
             const fileName = file.name.replace(/\.[^/.]+$/, '');
             formData.append("public_id", `${index}-${fileName}`);
             const response = await axios.post(CLOUDINARY_API_URL, formData);
@@ -159,8 +158,8 @@ export default function Upload() {
             if (typeof url !== 'string' || !url.startsWith('https://')) {
               throw new Error(`Invalid Cloudinary URL for ${file.name}: ${url}`);
             }
-            currentProgress += progressPerImage;
-            setUploadProgress(Math.min(Math.round(currentProgress), 90));
+            uploadedImages += 1;
+            setUploadProgress(Math.min(10 + uploadedImages * progressPerImage, 95));
             return url;
           } catch (error) {
             console.error(`Failed to upload ${file.name} to Cloudinary:`, error);
@@ -169,7 +168,6 @@ export default function Upload() {
         })
       );
 
-      // Filter out null or invalid URLs
       const validImageUrls = imageUrls.filter(url => typeof url === 'string' && url.startsWith('https://'));
       console.log('Cloudinary URLs:', validImageUrls);
 
@@ -182,11 +180,10 @@ export default function Upload() {
       };
       console.log('PATCH Payload:', patchPayload);
 
-      const patchResponse = await axios.patch(
+      await axios.patch(
         `${import.meta.env.VITE_API_URL}/comics/${encodeURIComponent(selectedComic)}`,
         patchPayload
       );
-      console.log('PATCH Response:', patchResponse.data);
 
       setUploadProgress(100);
 
@@ -209,8 +206,10 @@ export default function Upload() {
       }
       alert(errorMessage);
     } finally {
-      setUploading(false);
-      setUploadProgress(0);
+      setTimeout(() => {
+        setUploading(false);
+        setUploadProgress(0);
+      }, 500); // Delay to show 100% briefly
     }
   };
 
@@ -226,14 +225,48 @@ export default function Upload() {
       const apiUrl = import.meta.env.VITE_API_URL;
       const chapterKey = `Chapter${selectedChapterToDelete}`;
       console.log(`Deleting chapter ${chapterKey} for comic: ${selectedComic}`);
-      setDeleteProgress(25);
 
-      // Call backend to delete chapter and Cloudinary images
+      // Fetch comic to get image URLs
+      const comicResponse = await axios.get(`${apiUrl}/comics/${encodeURIComponent(selectedComic)}`);
+      const chapter = comicResponse.data.chapters[chapterKey];
+      if (!chapter) {
+        throw new Error('Chapter not found');
+      }
+      const imageUrls = chapter.pages || [];
+      setDeleteProgress(10);
+
+      const totalImages = imageUrls.length;
+      const progressPerImage = totalImages > 0 ? 80 / totalImages : 0;
+      let deletedImages = 0;
+
+      // Delete images from Cloudinary
+      await Promise.all(
+        imageUrls.map(async (url) => {
+          try {
+            const publicId = url.split('/').slice(-1)[0].split('.')[0];
+            await axios.post(
+              `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/destroy`,
+              { public_id: `comics/${selectedComic}/${chapterKey}/${publicId}` },
+              {
+                headers: {
+                  Authorization: `Basic ${btoa(`${process.env.REACT_APP_CLOUDINARY_API_KEY}:${process.env.REACT_APP_CLOUDINARY_API_SECRET}`)}`
+                }
+              }
+            );
+            deletedImages += 1;
+            setDeleteProgress(Math.min(10 + deletedImages * progressPerImage, 90));
+          } catch (error) {
+            console.error(`Failed to delete image ${url}:`, error);
+          }
+        })
+      );
+
+      // Delete chapter from backend
       const deleteResponse = await axios.delete(
         `${apiUrl}/comics/${encodeURIComponent(selectedComic)}/chapter/${chapterKey}`
       );
       console.log('Delete Response:', deleteResponse.data);
-      setDeleteProgress(75);
+      setDeleteProgress(100);
 
       // Update local state
       setComicsData((prev) => {
@@ -244,7 +277,6 @@ export default function Upload() {
           [selectedComic]: { ...prev[selectedComic], chapters: updatedChapters },
         };
       });
-      setDeleteProgress(100);
 
       alert("Chapter and associated images deleted successfully!");
       setSelectedChapterToDelete("");
@@ -258,8 +290,10 @@ export default function Upload() {
       }
       alert(`${errorMessage}. Please try again or contact support.`);
     } finally {
-      setDeleting(false);
-      setDeleteProgress(0);
+      setTimeout(() => {
+        setDeleting(false);
+        setDeleteProgress(0);
+      }, 500); // Delay to show 100% briefly
     }
   };
 
@@ -391,13 +425,10 @@ export default function Upload() {
                 {uploading ? (
                   <>
                     <div
-                      className="absolute inset-0 bg-gray-500 transition-all duration-300"
-                      style={{
-                        width: `${uploadProgress}%`,
-                        minWidth: "100%",
-                      }}
+                      className="absolute inset-0 bg-teal-500 transition-all duration-300 ease-out"
+                      style={{ width: `${uploadProgress}%` }}
                     ></div>
-                    <span className="relative z-10 text-white">{uploadProgress}%</span>
+                    <span className="relative z-10 text-white">{Math.round(uploadProgress)}%</span>
                   </>
                 ) : (
                   "Upload Chapter"
@@ -452,13 +483,10 @@ export default function Upload() {
                 {deleting ? (
                   <>
                     <div
-                      className="absolute inset-0 bg-gray-500 transition-all duration-300"
-                      style={{
-                        width: `${deleteProgress}%`,
-                        minWidth: "100%",
-                      }}
+                      className="absolute inset-0 bg-red-500 transition-all duration-300 ease-out"
+                      style={{ width: `${deleteProgress}%` }}
                     ></div>
-                    <span className="relative z-10 text-white">{deleteProgress}%</span>
+                    <span className="relative z-10 text-white">{Math.round(deleteProgress)}%</span>
                   </>
                 ) : (
                   "Delete Chapter"
